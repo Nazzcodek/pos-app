@@ -1,0 +1,16 @@
+fastapi[standard]
+uvicorn
+pydantic
+bcrypt
+psycopg2-binary
+python-dotenv
+python-jose[cryptography]
+passlib
+python-multipart
+sqlalchemy
+aiofiles
+python-socketio
+zeroconf
+reportlab
+pillow
+openpyxl
