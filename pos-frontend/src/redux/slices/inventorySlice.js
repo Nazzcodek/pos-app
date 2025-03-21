@@ -542,7 +542,7 @@ const inventorySlice = createSlice({
       })
       .addCase(createDepartment.fulfilled, (state, action) => {
         state.loading = false;
-        state.transactions.push(action.payload);
+        state.departments.push(action.payload);
       })
       .addCase(createDepartment.rejected, (state, action) => {
         state.loading = false;
@@ -554,14 +554,28 @@ const inventorySlice = createSlice({
       })
       .addCase(updateDepartment.fulfilled, (state, action) => {
         state.loading = false;
-        const index = state.transactions.findIndex(
-          (transaction) => transaction.id === action.payload.id
+        const index = state.departments.findIndex(
+          (department) => department.id === action.payload.id
         );
         if (index !== -1) {
-          state.transactions[index] = action.payload;
+          state.departments[index] = action.payload;
         }
       })
       .addCase(updateDepartment.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      // delete department
+      .addCase(deleteDepartment.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(deleteDepartment.fulfilled, (state, action) => {
+        state.loading = false;
+        state.departments = state.departments.filter(
+          (department) => department.id !== action.payload
+        );
+      })
+      .addCase(deleteDepartment.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

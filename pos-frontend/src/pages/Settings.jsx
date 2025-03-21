@@ -4,6 +4,7 @@ import { Container, Typography, Button, Box, Paper } from "@mui/material";
 import { ArrowBack, Edit } from "@mui/icons-material";
 import SettingsForm from "../components/settings/SettingsForm";
 import SettingsDetail from "../components/settings/SettingsDetail";
+import DepartmentDetail from "../components/settings/DepartmentDetail";
 
 const SettingsPage = () => {
   const navigate = useNavigate();
@@ -61,6 +62,8 @@ const SettingsPage = () => {
           <SettingsDetail />
         </Paper>
       )}
+
+      <DepartmentDetail />
     </Container>
   );
 };

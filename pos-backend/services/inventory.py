@@ -1292,7 +1292,7 @@ class InventoryService:
         self.db.refresh(department)
         return department
   
-    def update_department(self, department_id: UUID, name: str, description: str) -> Department:
+    def update_department(self, department_id: UUID, name: str, description: str) -> Dict:
         """Update an existing department"""
         department = self.get_department(department_id)
         department.name = name
@@ -1300,7 +1300,13 @@ class InventoryService:
         self.db.add(department)
         self.db.commit()
         self.db.refresh(department)
-        return department
+        
+        return {
+            "id": str(department.id),
+            "name": department.name,
+            "description": department.description
+        }
+
     
     def delete_department(self, department_id: UUID) -> None:
         """Delete a department"""

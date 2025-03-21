@@ -360,29 +360,27 @@ async def get_department(
 @router.post("/departments", response_model=DepartmentSchema, status_code=status.HTTP_201_CREATED)
 @role_required(["supervisor"], 'inventories', 'create')
 async def create_department(
-    name: str,
-    description: str,
+    department: DepartmentSchema,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new department"""
     inventory_service = InventoryService(db)
-    department = inventory_service.create_department(name, description)
+    department = inventory_service.create_department(department.name, department.description)
     return DepartmentSchema.from_orm(department)
 
 
-@router.put("/departments/{department_id}", response_model=Dict)
+@router.put("/departments/{department_id}", response_model=DepartmentSchema)
 @role_required(["supervisor"], 'inventories', 'update')
 async def update_department(
     department_id: UUID,
-    name: str,
-    description: str,
+    department: DepartmentSchema,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Update an existing department"""
     inventory_service = InventoryService(db)
-    return inventory_service.update_department(department_id, name, description)
+    return inventory_service.update_department(department_id, department.name, department.description)
 
 @router.delete("/departments/{department_id}", status_code=status.HTTP_204_NO_CONTENT)
 @role_required(["supervisor"], 'inventories', 'delete')

@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { setUser, logout } from "../redux/slices/authSlice";
@@ -13,145 +19,153 @@ const AuthProvider = ({ children }) => {
   const dispatch = useDispatch();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
   const [loading, setLoading] = useState(true);
-  const [wsInitialized, setWsInitialized] = useState(false);
-  const [wsInitializing, setWsInitializing] = useState(false);
+  const [wsStatus, setWsStatus] = useState({
+    initialized: false,
+    initializing: false,
+    connectionErrors: 0,
+  });
   const [discoveredServices, setDiscoveredServices] = useState([]);
-  const [connectionErrors, setConnectionErrors] = useState(0);
   const MAX_RETRY_ATTEMPTS = 3;
 
-  // Handle service discovery
+  // Handle service discovery - only when needed
   useEffect(() => {
     const handleServiceDiscovery = async () => {
       try {
         await zeroconfDiscovery.startDiscovery();
-        const services = zeroconfDiscovery.getServices();
-        setDiscoveredServices(services);
+        setDiscoveredServices(zeroconfDiscovery.getServices());
       } catch (error) {
         console.error("Failed to discover services:", error);
       }
     };
 
-    // Add event listener for service discovery events
-    const serviceEventHandler = (event, data) => {
+    const serviceEventHandler = (event) => {
       if (event === "serviceFound" || event === "serviceRemoved") {
         setDiscoveredServices(zeroconfDiscovery.getServices());
       }
     };
 
-    zeroconfDiscovery.addEventListener(serviceEventHandler);
-
-    // Initial discovery
-    if (!wsInitialized && !wsInitializing) {
+    // Only start discovery if we're authenticated but not connected
+    if (isAuthenticated && !wsStatus.initialized && !wsStatus.initializing) {
+      zeroconfDiscovery.addEventListener(serviceEventHandler);
       handleServiceDiscovery();
     }
 
     return () => {
       zeroconfDiscovery.removeEventListener(serviceEventHandler);
     };
-  }, [wsInitialized, wsInitializing]);
+  }, [isAuthenticated, wsStatus.initialized, wsStatus.initializing]);
 
-  // Listen for WebSocket authentication errors
+  // WebSocket auth error listener
   useEffect(() => {
     const handleAuthError = (event) => {
       toast.error(`WebSocket authentication error: ${event.detail.message}`);
-      setWsInitialized(false);
+      setWsStatus((prev) => ({ ...prev, initialized: false }));
     };
 
     document.addEventListener("websocket-auth-error", handleAuthError);
-
-    return () => {
+    return () =>
       document.removeEventListener("websocket-auth-error", handleAuthError);
-    };
   }, []);
 
-  // Handle WebSocket initialization after successful authentication
-  useEffect(() => {
-    const initializeWebSocket = async () => {
-      // Prevent concurrent initialization attempts
-      if (wsInitializing || wsInitialized) return;
+  // WebSocket connection management
+  const initializeWebSocket = useCallback(async () => {
+    // Prevent concurrent initialization attempts
+    if (wsStatus.initializing || wsStatus.initialized) return;
 
-      setWsInitializing(true);
+    setWsStatus((prev) => ({ ...prev, initializing: true }));
 
-      try {
-        // If WebSocket is already connected, disconnect first
-        if (WebSocketService.isConnected) {
-          WebSocketService.disconnect();
-          // Give time for the connection to fully close
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-
-        // Reset WebSocket state before connecting
-        WebSocketService.resetState();
-
-        // Connect to WebSocket
-        await WebSocketService.connect();
-        await WebSocketService.authenticateFromCookies();
-
-        setWsInitialized(true);
-        setConnectionErrors(0);
-      } catch (error) {
-        console.error("Failed to initialize WebSocket:", error);
-
-        // Increment error count
-        setConnectionErrors((prev) => prev + 1);
-
-        // Only retry with discovery if we haven't exceeded max attempts
-        if (connectionErrors < MAX_RETRY_ATTEMPTS) {
-          try {
-            // Force refresh discovery before retry
-            await zeroconfDiscovery.forceRefresh();
-
-            // Reset WebSocket state before connecting
-            WebSocketService.resetState();
-
-            await WebSocketService.connect();
-            await WebSocketService.authenticateFromCookies();
-
-            setWsInitialized(true);
-            setConnectionErrors(0);
-          } catch (retryError) {
-            console.error(
-              "Failed to initialize WebSocket after discovery:",
-              retryError
-            );
-            toast.error(
-              "Failed to establish WebSocket connection. Please check your network connection."
-            );
-          }
-        } else {
-          toast.error(
-            "Failed to connect after multiple attempts. Please try again later."
-          );
-        }
-      } finally {
-        setWsInitializing(false);
+    try {
+      // Reset connection if needed
+      if (WebSocketService.isConnected) {
+        WebSocketService.disconnect();
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
-    };
 
-    if (isAuthenticated && user && !wsInitialized && !wsInitializing) {
+      WebSocketService.resetState();
+      await WebSocketService.connect();
+      await WebSocketService.authenticateFromCookies();
+
+      setWsStatus({
+        initialized: true,
+        initializing: false,
+        connectionErrors: 0,
+      });
+    } catch (error) {
+      console.error("WebSocket initialization failed:", error);
+
+      const newErrorCount = wsStatus.connectionErrors + 1;
+
+      // Try discovery-based reconnection only if under max attempts
+      if (newErrorCount < MAX_RETRY_ATTEMPTS) {
+        try {
+          await zeroconfDiscovery.forceRefresh();
+          WebSocketService.resetState();
+          await WebSocketService.connect();
+          await WebSocketService.authenticateFromCookies();
+
+          setWsStatus({
+            initialized: true,
+            initializing: false,
+            connectionErrors: 0,
+          });
+        } catch (retryError) {
+          console.error("Retry failed:", retryError);
+          toast.error(
+            "Failed to establish connection. Please check your network."
+          );
+          setWsStatus({
+            initialized: false,
+            initializing: false,
+            connectionErrors: newErrorCount,
+          });
+        }
+      } else {
+        toast.error(
+          "Failed to connect after multiple attempts. Please try again later."
+        );
+        setWsStatus({
+          initialized: false,
+          initializing: false,
+          connectionErrors: newErrorCount,
+        });
+      }
+    }
+  }, [wsStatus.initializing, wsStatus.initialized, wsStatus.connectionErrors]);
+
+  // Initialize WebSocket when authenticated
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      user &&
+      !wsStatus.initialized &&
+      !wsStatus.initializing
+    ) {
       initializeWebSocket();
     }
+  }, [
+    isAuthenticated,
+    user,
+    wsStatus.initialized,
+    wsStatus.initializing,
+    initializeWebSocket,
+  ]);
 
-    return () => {
-      // Only disconnect if this component is unmounting
-      if (!isAuthenticated) {
-        WebSocketService.disconnect();
-        setWsInitialized(false);
-      }
-    };
-  }, [isAuthenticated, user, wsInitialized, wsInitializing, connectionErrors]);
+  // Cleanup on unmount or logout
+  useEffect(() => {
+    if (!isAuthenticated && WebSocketService.isConnected) {
+      WebSocketService.disconnect();
+      setWsStatus((prev) => ({ ...prev, initialized: false }));
+    }
+  }, [isAuthenticated]);
 
-  // Initial auth check
+  // Initial auth check - runs only once
   useEffect(() => {
     const initAuth = async () => {
       try {
         const response = await api.get("/user/me");
         dispatch(setUser(response.data));
       } catch (error) {
-        // Only dispatch logout if we're not already logged out
-        if (isAuthenticated) {
-          dispatch(logout());
-        }
+        if (isAuthenticated) dispatch(logout());
       } finally {
         setLoading(false);
       }
@@ -160,12 +174,22 @@ const AuthProvider = ({ children }) => {
     initAuth();
   }, [dispatch, isAuthenticated]);
 
+  // Optimized login function - avoids redundant API calls
   const login = async (username, password) => {
     try {
-      await api.post("/user/login", { username, password });
-      const response = await api.get("/user/me");
-      dispatch(setUser(response.data));
-      // WebSocket connection will be handled by the effect
+      const loginResponse = await api.post("/user/login", {
+        username,
+        password,
+      });
+
+      // If login endpoint returns user data, use it directly
+      if (loginResponse.data && loginResponse.data.user) {
+        dispatch(setUser(loginResponse.data.user));
+      } else {
+        // Fall back to fetching user data if not included in login response
+        const userResponse = await api.get("/user/me");
+        dispatch(setUser(userResponse.data));
+      }
       return true;
     } catch (error) {
       toast.error("Login failed. Please check your credentials.");
@@ -177,7 +201,7 @@ const AuthProvider = ({ children }) => {
     try {
       // Disconnect WebSocket first
       WebSocketService.disconnect();
-      setWsInitialized(false);
+      setWsStatus((prev) => ({ ...prev, initialized: false }));
 
       // Then logout from API
       await api.post("/user/logout");
@@ -191,30 +215,29 @@ const AuthProvider = ({ children }) => {
   const selectService = (serviceId) => {
     const service = zeroconfDiscovery.selectService(serviceId);
     if (service) {
-      // Disconnect current WebSocket if connected
       if (WebSocketService.isConnected) {
         WebSocketService.disconnect();
       }
-
-      // Reset connection state to trigger reconnection
-      setWsInitialized(false);
+      setWsStatus((prev) => ({ ...prev, initialized: false }));
       return true;
     }
     return false;
   };
 
-  // Manual reconnect function that can be called from UI
+  // Simplified reconnect function
   const reconnectWebSocket = async () => {
-    if (wsInitializing) return;
+    if (wsStatus.initializing) return;
 
-    setWsInitialized(false);
     WebSocketService.disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Wait for disconnect to complete
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setWsStatus({
+      initialized: false,
+      initializing: false,
+      connectionErrors: 0,
+    });
 
-    // Reset connection errors to allow fresh attempts
-    setConnectionErrors(0);
+    // initializeWebSocket will be triggered by the useEffect
   };
 
   if (loading) {
@@ -231,8 +254,8 @@ const AuthProvider = ({ children }) => {
     login,
     logout: logoutUser,
     discoveredServices,
-    wsInitialized,
-    wsInitializing,
+    wsInitialized: wsStatus.initialized,
+    wsInitializing: wsStatus.initializing,
     selectService,
     reconnectWebSocket,
   };
