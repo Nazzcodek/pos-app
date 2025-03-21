@@ -16,7 +16,7 @@ import Grid from "@mui/material/Grid2";
 import Loader from "../common/Loader";
 import API_URL from "../common/envCall";
 
-const SettingForm = () => {
+const SettingsForm = ({ onSaveComplete }) => {
   const dispatch = useDispatch();
   const { settings, loading, error } = useSelector((state) => state.settings);
 
@@ -83,9 +83,19 @@ const SettingForm = () => {
       }
     });
 
-    const result = dispatch(updateSettings(data));
-    if (updateSettings.rejected.match(result)) {
-      console.error("Update failed:", result.payload);
+    try {
+      await dispatch(updateSettings(data)).unwrap();
+      if (onSaveComplete) {
+        onSaveComplete();
+      }
+    } catch (error) {
+      console.error("Update failed:", error);
+    }
+  };
+
+  const handleCancel = () => {
+    if (onSaveComplete) {
+      onSaveComplete();
     }
   };
 
@@ -193,7 +203,12 @@ const SettingForm = () => {
             <input type="file" onChange={handleFileChange} />
           </Grid>
         </Grid>
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>
+        <Box
+          sx={{ display: "flex", justifyContent: "flex-end", mt: 3, gap: 2 }}
+        >
+          <Button variant="outlined" onClick={handleCancel}>
+            Cancel
+          </Button>
           <Button variant="contained" color="primary" type="submit">
             Save Settings
           </Button>
@@ -203,4 +218,4 @@ const SettingForm = () => {
   );
 };
 
-export default SettingForm;
+export default SettingsForm;

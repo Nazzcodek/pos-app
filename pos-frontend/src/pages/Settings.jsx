@@ -1,11 +1,22 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Container, Typography, Button, Box } from "@mui/material";
-import { ArrowBack } from "@mui/icons-material";
+import { Container, Typography, Button, Box, Paper } from "@mui/material";
+import { ArrowBack, Edit } from "@mui/icons-material";
 import SettingsForm from "../components/settings/SettingsForm";
+import SettingsDetail from "../components/settings/SettingsDetail";
 
 const SettingsPage = () => {
   const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleEditClick = () => {
+    setIsEditing(true);
+  };
+
+  const handleSaveComplete = () => {
+    setIsEditing(false);
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Box
@@ -33,7 +44,23 @@ const SettingsPage = () => {
         throughout the application.
       </Typography>
 
-      <SettingsForm />
+      {isEditing ? (
+        <SettingsForm onSaveComplete={handleSaveComplete} />
+      ) : (
+        <Paper sx={{ p: 3, mt: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<Edit />}
+              onClick={handleEditClick}
+            >
+              Edit Settings
+            </Button>
+          </Box>
+          <SettingsDetail />
+        </Paper>
+      )}
     </Container>
   );
 };

@@ -23,10 +23,16 @@ import SupplierManagementPage from "./pages/Suppliers";
 import InvoicePage from "./pages/Invoice";
 import TransactionPage from "./pages/Transaction";
 import WebSocketStatus from "./components/common/WebSocketStatus";
+import { initializeApiInterceptors } from "./api";
 
 const App = () => {
   const { wsInitialized } = useAuth();
   const [showReconnect, setShowReconnect] = useState(false);
+
+  // Initialize API interceptors
+  useEffect(() => {
+    initializeApiInterceptors(store);
+  }, []);
 
   // Show reconnect UI if connection is lost
   useEffect(() => {

@@ -117,7 +117,7 @@ const EquipmentDetail = ({ open, onClose, equipment, onEdit, canEdit }) => {
                           </TableCell>
                           <TableCell>
                             {equipment?.price_per_unit
-                              ? `$${parseFloat(
+                              ? `₦${parseFloat(
                                   equipment.price_per_unit
                                 ).toFixed(2)}`
                               : "N/A"}

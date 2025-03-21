@@ -127,7 +127,7 @@ const SupplierManagementPage = () => {
           open={openModal}
           onClose={handleCloseModal}
           initialData={selectedSupplier}
-          isEditing={isEditing}
+          isEditing={isEditing} // Optional - component will use internal state if this is undefined
         />
 
         <SupplierErrorHandler error={error} />

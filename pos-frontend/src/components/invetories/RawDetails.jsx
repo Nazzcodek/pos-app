@@ -111,7 +111,7 @@ const RawMaterialDetail = ({ open, onClose, material, onEdit, canEdit }) => {
                           </TableCell>
                           <TableCell>
                             {material?.price_per_unit
-                              ? `$${parseFloat(material.price_per_unit).toFixed(
+                              ? `₦${parseFloat(material.price_per_unit).toFixed(
                                   2
                                 )}`
                               : "N/A"}
